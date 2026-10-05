@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ambil Foto Selfie</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: white;
+      color: #0f172a;
+      border-radius: 20px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,.25);
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    p { margin: 0 0 16px; color: #64748b; font-size: 13px; }
+    video {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      object-fit: cover;
+      background: #020617;
+      border-radius: 16px;
+      display: block;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 16px;
+      margin-top: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #captureBtn { background: #059669; color: white; }
+    #captureBtn:disabled { background: #94a3b8; cursor: not-allowed; }
+    #closeBtn { background: #e2e8f0; color: #334155; }
+    #status {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #64748b;
+      min-height: 18px;
+    }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📷 Ambil Foto Selfie</h1>
+    <p>Posisikan wajah di tengah kamera, lalu tekan <b>Ambil Foto</b>.</p>
+
+    <video id="camera" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <button id="captureBtn" disabled>📸 Ambil Foto</button>
+    <button id="closeBtn">Tutup Kamera</button>
+
+    <div id="status">Meminta izin kamera...</div>
+  </div>
+
+<script>
+  const video = document.getElementById('camera');
+  const canvas = document.getElementById('canvas');
+  const captureBtn = document.getElementById('captureBtn');
+  const closeBtn = document.getElementById('closeBtn');
+  const statusText = document.getElementById('status');
+
+  const params = new URLSearchParams(window.location.search);
+  const nonce = params.get('nonce') || '';
+
+  let stream = null;
+
+  async function openCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 720 },
+          height: { ideal: 960 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+      captureBtn.disabled = false;
+      statusText.textContent = 'Kamera siap. Pastikan wajah terlihat jelas.';
+    } catch (error) {
+      console.error(error);
+      statusText.textContent =
+        'Kamera tidak dapat dibuka. Pastikan izin kamera diberikan dan halaman menggunakan HTTPS.';
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
+  }
+
+  captureBtn.addEventListener('click', function () {
+    if (!stream) return;
+
+    canvas.width = video.videoWidth || 720;
+    canvas.height = video.videoHeight || 960;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({
+        type: 'SELFIE_CAPTURED',
+        nonce: nonce,
+        dataUrl: dataUrl
+      }, '*');
+
+      statusText.textContent = 'Foto berhasil dikirim ke formulir.';
+      stopCamera();
+      captureBtn.disabled = true;
+
+      setTimeout(() => {
+        window.close();
+      }, 500);
+    } else {
+      statusText.textContent = 'Halaman formulir utama tidak ditemukan.';
+    }
+  });
+
+  closeBtn.addEventListener('click', function () {
+    stopCamera();
+    window.close();
+  });
+
+  window.addEventListener('beforeunload', stopCamera);
+
+  openCamera();
+</script>
+</body>
+</html>
